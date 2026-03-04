@@ -1,0 +1,41 @@
+name: Publish to ClawHub
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install ClawHub CLI
+        run: npm install -g clawhub
+
+      - name: Authenticate
+        run: clawhub login --token "$CLAWHUB_TOKEN" --no-browser
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+
+      - name: Get current version and bump patch
+        id: version
+        run: |
+          CURRENT=$(clawhub inspect hotel-search 2>/dev/null | grep "^Latest:" | awk '{print $2}' || echo "1.0.0")
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "next=$NEXT" >> "$GITHUB_OUTPUT"
+
+      - name: Publish
+        run: |
+          CHANGELOG=$(git log -1 --pretty=%B)
+          clawhub publish . \
+            --slug hotel-search \
+            --name "Google Hotels" \
+            --version "${{ steps.version.outputs.next }}" \
+            --changelog "${CHANGELOG}" \
+            --tags latest
