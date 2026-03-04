@@ -1,93 +1,67 @@
 # Google Hotels Interaction Patterns
 
-Deep-dive cookbook for automating Google Hotels with agent-browser. Covers the tricky interactions that require careful handling.
+Deep-dive cookbook for automating Google Hotels with agent-browser. Covers tricky interactions that need careful handling.
 
-**Related**: [../SKILL.md](../SKILL.md) for the main workflow.
+**Quick reference**: [../SKILL.md](../SKILL.md) for the main workflow and key rules.
 
 ## Contents
 
 - [Full Annotated Walkthrough](#full-annotated-walkthrough)
-- [Location Autocomplete Deep Dive](#location-autocomplete-deep-dive)
-- [Date Picker Calendar Navigation](#date-picker-calendar-navigation)
-- [Guest & Room Selector Deep Dive](#guest--room-selector-deep-dive)
-- [Applying Filters](#applying-filters)
+- [Location Autocomplete](#location-autocomplete)
+- [Date Picker Calendar](#date-picker-calendar)
+- [Guest & Room Selector](#guest--room-selector)
+- [Filters](#filters)
 - [Scrolling for More Results](#scrolling-for-more-results)
-- [Drilling Into a Hotel](#drilling-into-a-hotel)
+- [Hotel Detail Drill-Down](#hotel-detail-drill-down)
 
 ---
 
 ## Full Annotated Walkthrough
 
-A complete command-by-command walkthrough for: **Hotels in Bangkok, March 15-20, 2 adults, 1 room**.
+Complete command-by-command example: **Hotels in Bangkok, March 15-20, 2 adults, 1 room**.
 
 ```bash
-# ── Step 1: Open Google Hotels via fast path ──
+# ── Step 1: Open via fast path ──
 agent-browser --session hotels open "https://www.google.com/travel/search?q=Hotels+in+Bangkok"
 agent-browser --session hotels wait --load networkidle
-# Google loads hotel results for Bangkok with default dates and guests.
-# Prices may show as "starting from" estimates or "View prices" until dates are set.
-
 agent-browser --session hotels snapshot -i
-# Expected output: interactive elements including:
-#   @e1 [textbox] "Bangkok"             ← location field (pre-filled from URL)
-#   @e2 [button] "Check-in"             ← check-in date
-#   @e3 [button] "Check-out"            ← check-out date
-#   @e4 [button] "Number of travelers"   ← travelers/rooms selector
-#   @e5 [link] "Sukhothai Bangkok"       ← first hotel result
-#   @e6 [link] "Centara Grand"           ← second hotel result
-#   ... more hotel listings
-# NOTE: Actual ref numbers WILL vary. Always read the snapshot.
+# Expected elements include:
+#   @e1 [textbox] "Bangkok"            ← pre-filled from URL
+#   @e2 [button] "Check-in"
+#   @e3 [button] "Check-out"
+#   @e4 [button] "Number of travelers"
+#   @e5 [link] "Sukhothai Bangkok"     ← first hotel result
+# Actual ref numbers WILL vary. Always read the snapshot.
 
-# ── Step 2: Check for consent banner ──
-# If you see a consent/cookie dialog, handle it first:
+# ── Step 2: Handle consent banner (if present) ──
 # agent-browser --session hotels click @eN  (Accept all / Reject all)
 # agent-browser --session hotels wait 2000
 # agent-browser --session hotels snapshot -i
 
-# ── Step 3: Set Check-in Date ──
-agent-browser --session hotels click @eN
-# Click the check-in date button/field.
-# This opens a calendar overlay.
-
+# ── Step 3: Set check-in date ──
+agent-browser --session hotels click @eN   # Check-in button — opens calendar
 agent-browser --session hotels wait 1000
 agent-browser --session hotels snapshot -i
-# Calendar appears showing current and next month.
-# Look for month headers and individual day buttons.
-# Each day button has a label like "Saturday, March 15"
-
-# Navigate to March if not already visible:
+# Navigate to March if needed:
 # agent-browser --session hotels click @eN   # Next month arrow
-# agent-browser --session hotels wait 1000
-# agent-browser --session hotels snapshot -i
 
-# Click March 15 (check-in)
-agent-browser --session hotels click @eN   # The "15" button under March
+agent-browser --session hotels click @eN   # March 15
 agent-browser --session hotels wait 500
 agent-browser --session hotels snapshot -i
-# Check-in date is now highlighted. Calendar stays open for check-out.
 
-# ── Step 4: Set Check-out Date ──
-# Calendar should still be open. March 20 should be visible.
-agent-browser --session hotels click @eN   # The "20" button under March
+# ── Step 4: Set check-out date ──
+agent-browser --session hotels click @eN   # March 20
 agent-browser --session hotels wait 500
 agent-browser --session hotels snapshot -i
-# Both dates are now selected. A date range is highlighted.
 
-# Click "Done" to confirm dates
-agent-browser --session hotels click @eN   # "Done" button
+agent-browser --session hotels click @eN   # "Done"
 agent-browser --session hotels wait --load networkidle
 agent-browser --session hotels snapshot -i
-# Results now show actual prices per night instead of "View prices".
+# Results now show actual per-night prices
 
-# ── Step 5: Extract Results ──
-# Parse the snapshot for hotel listings.
-# Each hotel entry typically contains:
-#   - Hotel name (link element)
-#   - Star rating (★ symbols or "N-star hotel" text)
-#   - Guest rating and review count
-#   - Price per night and/or total price
-#   - Booking provider (Hotels.com, Booking.com, etc.)
-#   - Key amenities
+# ── Step 5: Extract results ──
+# Parse snapshot for: hotel name, star rating, guest rating,
+# price/night, booking provider, amenities
 
 # ── Step 6: Close ──
 agent-browser --session hotels close
@@ -95,444 +69,269 @@ agent-browser --session hotels close
 
 ---
 
-## Location Autocomplete Deep Dive
+## Location Autocomplete
 
-The location autocomplete is the primary source of failures when using the interactive workflow (not an issue with the URL fast path since location is pre-filled).
+Only relevant for the interactive workflow (the URL fast path pre-fills location).
 
 ### How It Works
 
-Google Hotels location fields work as search/combobox elements:
-1. Clicking the field focuses it and may show recent searches
-2. Typing triggers a debounced API call (~500ms)
-3. A dropdown renders with matching locations (cities, neighborhoods, landmarks, hotels)
-4. Each suggestion includes location name, type, and sometimes a brief description
+1. Click the location field (focuses it, may show recent searches)
+2. Type triggers a debounced API call (~500ms)
+3. Dropdown renders with matching locations (cities, neighborhoods, landmarks, hotels)
+4. Click the correct suggestion — **never press Enter**
 
-### Location Types in Suggestions
+### Suggestion Types
 
-| Type | Example | When to Use |
-|------|---------|-------------|
-| City | "Bangkok, Thailand" | General city-wide search |
-| Neighborhood | "Shibuya, Tokyo, Japan" | Specific area |
-| Landmark | "Near Eiffel Tower, Paris" | Proximity-based |
-| Airport | "Near BKK Airport" | Airport hotels |
-| Hotel name | "Sukhothai Bangkok" | Searching for a specific hotel |
+| Type | Example |
+|------|---------|
+| City | "Bangkok, Thailand" |
+| Neighborhood | "Shibuya, Tokyo, Japan" |
+| Landmark | "Near Eiffel Tower, Paris" |
+| Airport | "Near BKK Airport" |
+| Hotel name | "Sukhothai Bangkok" |
 
-### Failure Mode 1: Dropdown Doesn't Appear
+### Failure Modes
 
-**Symptom**: After typing and waiting 2s, snapshot shows no dropdown.
+**Dropdown doesn't appear** after typing + 2s wait:
 
-**Recovery**:
 ```bash
-# Try pressing Escape and starting over
 agent-browser --session hotels press Escape
 agent-browser --session hotels wait 500
-agent-browser --session hotels click @eN     # Re-click the field
+agent-browser --session hotels click @eN     # Re-click field
 agent-browser --session hotels wait 1000
-agent-browser --session hotels snapshot -i
-
-# Clear and retype
 agent-browser --session hotels fill @eN "Bangkok"
-agent-browser --session hotels wait 3000     # Wait longer this time
+agent-browser --session hotels wait 3000     # Wait longer
 agent-browser --session hotels snapshot -i
 ```
 
-If still no dropdown:
+Still nothing? Try a more specific query like "Bangkok Thailand".
+
+**Wrong location selected** — results show wrong city:
+
 ```bash
-# Try a more specific query
-agent-browser --session hotels fill @eN "Bangkok Thailand"
-agent-browser --session hotels wait 3000
-agent-browser --session hotels snapshot -i
-```
-
-### Failure Mode 2: Wrong Location Selected
-
-**Symptom**: Results show hotels in the wrong city or area.
-
-**Recovery**:
-```bash
-# Click the location field to re-open it
 agent-browser --session hotels click @eN     # Location field
 agent-browser --session hotels wait 1000
-agent-browser --session hotels snapshot -i
-
-# Clear and re-enter
 agent-browser --session hotels fill @eN "Shibuya Tokyo"
 agent-browser --session hotels wait 2000
 agent-browser --session hotels snapshot -i
-agent-browser --session hotels click @eN     # Click correct suggestion
+agent-browser --session hotels click @eN     # Correct suggestion
 ```
 
-### Failure Mode 3: Ambiguous Location
+**Ambiguous location** — multiple matches (e.g., Portland OR vs ME): Read the full suggestion text which includes state/country, then click the correct one.
 
-**Symptom**: Multiple similar locations appear (e.g., "Portland, OR" vs "Portland, ME").
-
-**Recovery**: Look at the full text of each suggestion — they usually include state/country:
-```
-@e12 [listitem] "Portland, Oregon, United States"
-@e13 [listitem] "Portland, Maine, United States"
-```
-Click the correct one based on context.
-
-### Failure Mode 4: "Near X" Queries Not Working
-
-**Symptom**: Typing "near Eiffel Tower" returns no useful suggestions.
-
-**Recovery**:
-```bash
-# Try the landmark name directly
-agent-browser --session hotels fill @eN "Eiffel Tower"
-agent-browser --session hotels wait 2000
-agent-browser --session hotels snapshot -i
-# Look for a location suggestion (not a hotel name)
-```
-
-### Best Practices Summary
-
-| Practice | Why |
-|----------|-----|
-| Prefer URL fast path for location | Skips autocomplete entirely |
-| Use `fill` not `type` | Clears existing text first |
-| Wait 2-3 seconds after typing | Autocomplete needs API roundtrip |
-| Always click the suggestion | Enter doesn't reliably select |
-| Use city + country for ambiguous names | Avoids wrong city |
-| Re-snapshot after every interaction | DOM changes invalidate refs |
+**"Near X" not working**: Try the landmark name directly without "near".
 
 ---
 
-## Date Picker Calendar Navigation
+## Date Picker Calendar
 
 ### Calendar Structure
 
-The Google Hotels calendar renders as a panel with month grids. Each date is a button with a full label. Key elements:
-
 - **Month headers**: "March 2026", "April 2026"
-- **Day buttons**: Each labeled like "Saturday, March 15" — some may show price annotations
-- **Navigation arrows**: "<" and ">" to move between months
-- **Done button**: Confirms the date selection
+- **Day buttons**: Labeled like "Saturday, March 15" — some show price annotations
+- **Navigation arrows**: "<" / ">" to move between months
+- **Done button**: Confirms selection
 - **Reset/Clear**: Clears selected dates
 
-### Setting Check-in and Check-out
+### Setting Dates
 
-The calendar flow for hotels is similar to flights:
-1. First click sets **check-in** date
-2. Second click sets **check-out** date
-3. The range between them is highlighted
-4. Click "Done" to confirm
+1. First click = check-in, second click = check-out
+2. Range between them highlights
+3. Click "Done" to confirm
 
 ```bash
-# Open calendar
-agent-browser --session hotels click @eN   # Check-in field
+agent-browser --session hotels click @eN   # Check-in field — opens calendar
 agent-browser --session hotels wait 1000
 agent-browser --session hotels snapshot -i
-
-# Click check-in date
-agent-browser --session hotels click @eN   # Day button for check-in
+agent-browser --session hotels click @eN   # Check-in day
 agent-browser --session hotels wait 500
-
-# Click check-out date
-agent-browser --session hotels click @eN   # Day button for check-out
+agent-browser --session hotels click @eN   # Check-out day
 agent-browser --session hotels wait 500
 agent-browser --session hotels snapshot -i
-
-# Confirm
 agent-browser --session hotels click @eN   # "Done"
 agent-browser --session hotels wait --load networkidle
 ```
 
-### Navigating to a Far-Future Month
-
-The calendar may only show 1-2 months at a time. Navigate forward with the arrow:
+### Navigating to Future Months
 
 ```bash
-agent-browser --session hotels click @eN   # ">" / next month arrow
+agent-browser --session hotels click @eN   # ">" next month arrow
 agent-browser --session hotels wait 1000
 agent-browser --session hotels snapshot -i
 # Repeat until target month is visible
 ```
 
-**Tip**: Search the snapshot text for your target date string (e.g., "March 15") to quickly find if it's visible and get the correct ref.
+**Tip**: Search the snapshot text for your target date string (e.g., "March 15") to check visibility.
 
-### Dates That Span Months
+### Cross-Month Stays
 
-For a stay from March 28 to April 5:
+For a stay from March 28 to April 5: click March 28 first. The calendar may auto-advance to show April. If not, navigate with ">". Then click April 5 and "Done".
 
-```bash
-# 1. Make sure March is visible
-# 2. Click March 28 (check-in)
-agent-browser --session hotels click @eN    # "28" in March
-agent-browser --session hotels wait 500
-agent-browser --session hotels snapshot -i
+### Common Issues
 
-# 3. April should now be visible (calendar may auto-advance)
-#    If not, click ">" to navigate
-agent-browser --session hotels click @eN    # ">" if needed
-agent-browser --session hotels wait 500
-agent-browser --session hotels snapshot -i
-
-# 4. Click April 5 (check-out)
-agent-browser --session hotels click @eN    # "5" in April
-agent-browser --session hotels wait 500
-agent-browser --session hotels snapshot -i
-
-# 5. Confirm
-agent-browser --session hotels click @eN    # "Done"
-```
-
-### Common Calendar Issues
-
-**Issue: Day numbers are ambiguous** — Snapshot may show "15" twice (once for each visible month).
-**Solution**: Look at surrounding context — day elements are grouped under their month header. Pick the one under the correct month.
-
-**Issue: Calendar doesn't close** — Click the "Done" button explicitly. Unlike some date pickers, it doesn't auto-close.
-
-**Issue: Dates seem set but prices still show "View prices"** — Results may need a moment to refresh. Wait for networkidle or add a short wait after clicking "Done".
+- **Ambiguous day numbers** (e.g., "15" in two visible months): Day elements are grouped under month headers — pick the one under the correct month.
+- **Calendar doesn't close**: Click "Done" explicitly. It doesn't auto-close.
+- **Still shows "View prices" after setting dates**: Wait for networkidle or add a short wait after "Done".
 
 ---
 
-## Guest & Room Selector Deep Dive
+## Guest & Room Selector
 
-The guest/room selector is the **most complex widget** in Google Hotels. It supports:
-- Multiple rooms (each with independent guest counts)
-- Adults per room
-- Children per room (with individual age dropdowns)
+The most complex widget. Supports multiple rooms, each with independent adult/child counts and per-child age dropdowns.
 
-### Default State
+**Default**: 1 room, 2 adults, 0 children.
 
-- 1 room
-- 2 adults
-- 0 children
-
-### Opening the Selector
+### Opening
 
 ```bash
-agent-browser --session hotels click @eN   # Button showing "Number of travelers"
+agent-browser --session hotels click @eN   # "Number of travelers" button
 agent-browser --session hotels wait 1000
 agent-browser --session hotels snapshot -i
-# Expected: a panel with:
-#   Room 1:
-#     Adults: [−] 2 [+]
-#     Children: [−] 0 [+]
-#   [Add a room]
-#   [Done]
+# Panel shows: Room 1 → Adults [−] 2 [+], Children [−] 0 [+]
+#              [Add a room] [Done]
 ```
 
-### Adjusting Adults
+### Adjusting Counts
+
+Click "+" or "−" next to Adults/Children. Re-snapshot to confirm.
+
+### Child Ages
+
+Adding a child creates an age dropdown for that child. Each child needs a separate age selection:
 
 ```bash
-agent-browser --session hotels click @eN   # "+" next to Adults (Room 1)
+agent-browser --session hotels click @eN   # "+" next to Children
 agent-browser --session hotels wait 500
 agent-browser --session hotels snapshot -i
-# Adults count increments. Repeat clicking "+" for more.
-# Use "−" to decrease.
-```
-
-### Adding Children
-
-```bash
-agent-browser --session hotels click @eN   # "+" next to Children (Room 1)
-agent-browser --session hotels wait 500
-agent-browser --session hotels snapshot -i
-# A child age dropdown may appear immediately or after clicking
-```
-
-### Selecting Child Ages
-
-When children are added, Google Hotels requires an age for each child. This creates a dropdown per child:
-
-```bash
-# After adding a child, look for an age dropdown
-agent-browser --session hotels click @eN   # Age dropdown (may say "Age needed" or show default)
+agent-browser --session hotels click @eN   # Age dropdown
 agent-browser --session hotels snapshot -i
 agent-browser --session hotels click @eN   # Select age (e.g., "8")
 agent-browser --session hotels wait 500
 agent-browser --session hotels snapshot -i
 ```
 
-**Each child has a separate age dropdown.** If you add 2 children, you'll need to set 2 ages.
-
-### Adding Multiple Rooms
+### Multiple Rooms
 
 ```bash
-agent-browser --session hotels click @eN   # "Add a room" button
+agent-browser --session hotels click @eN   # "Add a room"
 agent-browser --session hotels wait 1000
 agent-browser --session hotels snapshot -i
-# A new "Room 2" section appears with its own Adults/Children controls
-# Repeat adult/child adjustments for Room 2
+# New "Room 2" section appears — adjust adults/children for it
 ```
 
-### Removing a Room
-
-```bash
-agent-browser --session hotels click @eN   # "Remove room" or "X" next to Room 2
-agent-browser --session hotels wait 500
-agent-browser --session hotels snapshot -i
-```
+To remove a room, click "Remove room" or "X" next to that room.
 
 ### Confirming
 
 ```bash
-agent-browser --session hotels click @eN   # "Done" or "Close"
+agent-browser --session hotels click @eN   # "Done"
 agent-browser --session hotels wait --load networkidle
 agent-browser --session hotels snapshot -i
 ```
 
-### Common Guest/Room Issues
+### Common Issues
 
-**Issue: Age dropdown doesn't open** — Try clicking the dropdown ref, wait, re-snapshot.
-
-**Issue: "+" button doesn't respond** — There may be a maximum (e.g., 14 adults per room). Check the current count.
-
-**Issue: Adding a room resets previous room** — This shouldn't happen, but if it does, set rooms in order and verify each after adding.
+- **Age dropdown won't open**: Click the ref, wait, re-snapshot.
+- **"+" not responding**: May have hit a maximum (e.g., 14 adults/room). Check current count.
 
 ---
 
-## Applying Filters
+## Filters
 
-Filters appear as buttons/toggles above the hotel results list. They update results dynamically — no separate "Apply" or "Search" button needed.
+Filters appear as buttons above results. They update results dynamically — no "Apply" button.
 
-### Star Rating Filter
+### Star Rating
 
 ```bash
-agent-browser --session hotels click @eN   # "Star rating" or "Stars" button
+agent-browser --session hotels click @eN   # "Star rating" button
 agent-browser --session hotels wait 500
 agent-browser --session hotels snapshot -i
-# Options like: "2+", "3+", "4+", "5"
-agent-browser --session hotels click @eN   # Desired star level
+agent-browser --session hotels click @eN   # e.g., "4+"
 agent-browser --session hotels wait --load networkidle
 agent-browser --session hotels snapshot -i
 ```
 
-**Tip**: Some interfaces show individual star checkboxes (2★, 3★, 4★, 5★) — click each one you want. Others show cumulative filters (3+ stars).
+Some interfaces show individual checkboxes (2-star, 3-star, etc.) instead of cumulative filters (3+).
 
-### Price Range Filter
+### Price Range
 
 ```bash
-agent-browser --session hotels click @eN   # "Price" filter button
+agent-browser --session hotels click @eN   # "Price" filter
 agent-browser --session hotels wait 500
 agent-browser --session hotels snapshot -i
-# May show a slider or min/max input fields
-
-# If input fields:
-agent-browser --session hotels fill @eN "100"   # Min price
-agent-browser --session hotels fill @eN "300"   # Max price
+agent-browser --session hotels fill @eN "100"   # Min
+agent-browser --session hotels fill @eN "300"   # Max
 agent-browser --session hotels wait --load networkidle
 agent-browser --session hotels snapshot -i
-
-# If slider: use click at approximate position or drag
 ```
 
 ### Free Cancellation
 
 ```bash
-agent-browser --session hotels click @eN   # "Free cancellation" checkbox/toggle
+agent-browser --session hotels click @eN   # "Free cancellation" toggle
 agent-browser --session hotels wait --load networkidle
 agent-browser --session hotels snapshot -i
 ```
 
-### Amenities Filter
+### Amenities
 
 ```bash
-agent-browser --session hotels click @eN   # "Amenities" or "More filters" button
+agent-browser --session hotels click @eN   # "Amenities" or "More filters"
 agent-browser --session hotels wait 500
 agent-browser --session hotels snapshot -i
-
-# Common amenity options:
-# - Pool, Spa, Gym/Fitness center
-# - Free WiFi, Free breakfast, Free parking
-# - Restaurant, Bar, Kitchen
-# - Air conditioning, Pet-friendly
-
-agent-browser --session hotels click @eN   # Click desired amenity
+agent-browser --session hotels click @eN   # Desired amenity (Pool, Spa, WiFi, etc.)
 agent-browser --session hotels wait --load networkidle
 agent-browser --session hotels snapshot -i
 ```
 
 ### Clearing Filters
 
-To remove a filter:
-```bash
-# Look for an "X" next to the active filter chip, or click the filter again to deselect
-agent-browser --session hotels click @eN   # "X" on active filter or toggle off
-agent-browser --session hotels wait --load networkidle
-agent-browser --session hotels snapshot -i
-```
+Click the "X" on an active filter chip, or click the filter again to deselect.
 
 ---
 
 ## Scrolling for More Results
 
-Google Hotels initially shows ~10-20 results. To see more:
+Google Hotels initially shows ~10-20 results.
 
 ```bash
-# Check if there's a "View more" or "Show more hotels" button
 agent-browser --session hotels snapshot -i
-# Look for "View more", "Show more", or similar
+# Look for "Show more hotels" or similar
 
-# If found, click it
 agent-browser --session hotels click @eN    # "Show more hotels"
 agent-browser --session hotels wait 3000
 agent-browser --session hotels snapshot -i
+```
 
-# If no button, try scrolling down
+If no button exists, try scrolling:
+
+```bash
 agent-browser --session hotels scroll down 1000
 agent-browser --session hotels wait 2000
 agent-browser --session hotels snapshot -i
 ```
 
-Repeat as needed to load more results. Each "Show more" click typically adds another batch.
-
 ---
 
-## Drilling Into a Hotel
+## Hotel Detail Drill-Down
 
-To view detailed information for a specific hotel:
-
-### Opening Hotel Details
+### Opening Details
 
 ```bash
-agent-browser --session hotels click @eN   # Click hotel name or listing
+agent-browser --session hotels click @eN   # Hotel name/listing
 agent-browser --session hotels wait --load networkidle
 agent-browser --session hotels snapshot -i
 ```
 
 ### What the Detail Page Shows
 
-The hotel detail page typically contains:
+- **Provider price comparison**: Hotels.com, Booking.com, Expedia, hotel direct — each with their price
+- **Room types**: Standard, Deluxe, Suite — each with prices
+- **Amenities**: Full list
+- **Reviews**: Rating breakdown and highlights
+- **Location**: Map, nearby attractions, transit
 
-1. **Provider price comparison** — Multiple booking sites with their prices:
-   ```
-   Hotels.com:  $185/night
-   Booking.com: $190/night
-   Expedia:     $188/night
-   Hotel direct: $180/night
-   ```
-
-2. **Room types** — Different room categories with prices:
-   ```
-   Standard Room:  $185/night
-   Deluxe Room:    $220/night
-   Suite:          $350/night
-   ```
-
-3. **Full amenity list** — Comprehensive list of hotel amenities
-
-4. **Guest reviews** — Rating breakdown, review highlights
-
-5. **Location** — Map, nearby attractions, transit info
-
-### Navigating Back
-
-```bash
-agent-browser --session hotels click @eN   # Back arrow or "Back to results" link
-agent-browser --session hotels wait --load networkidle
-agent-browser --session hotels snapshot -i
-```
-
-**Important**: After navigating back, results may have shifted. Re-snapshot and re-identify refs before interacting with other hotels.
-
-### Extracting Provider Comparison
-
-When drilling into a hotel, present the provider comparison:
+### Provider Comparison Format
 
 ```
 ## Sukhothai Bangkok — Provider Comparison
@@ -544,3 +343,13 @@ When drilling into a hotel, present the provider comparison:
 | Booking.com | Deluxe | $190 | $950 | Non-refundable |
 | Expedia | Standard | $165 | $825 | Free until Mar 8 |
 ```
+
+### Navigating Back
+
+```bash
+agent-browser --session hotels click @eN   # Back arrow or "Back to results"
+agent-browser --session hotels wait --load networkidle
+agent-browser --session hotels snapshot -i
+```
+
+After navigating back, results may have shifted — re-snapshot before interacting with other hotels.
