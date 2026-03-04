@@ -21,36 +21,60 @@ Deep-dive cookbook for automating Google Hotels with agent-browser. Covers trick
 
 Complete command-by-command example: **Hotels in Bangkok, March 15-20, 2 adults, 1 room**.
 
+### With Date-Encoded URL (Preferred — 3 commands)
+
 ```bash
-# ── Step 1: Open via fast path ──
-agent-browser --session hotels open "https://www.google.com/travel/search?q=Hotels+in+Bangkok"
+# ── Step 1: Generate ts parameter and open ──
+ts=$(hotel_ts 2026 3 15 2026 3 20 5)
+agent-browser --session hotels open "https://www.google.com/travel/search?q=Hotels+in+Bangkok&qs=CAE4AA&ts=${ts}&ap=MAE"
 agent-browser --session hotels wait --load networkidle
-agent-browser --session hotels snapshot -i
-# Expected elements include:
-#   @e1 [textbox] "Bangkok"            ← pre-filled from URL
-#   @e2 [button] "Check-in"
-#   @e3 [button] "Check-out"
-#   @e4 [button] "Number of travelers"
-#   @e5 [link] "Sukhothai Bangkok"     ← first hotel result
-# Actual ref numbers WILL vary. Always read the snapshot.
 
 # ── Step 2: Handle consent banner (if present) ──
 # agent-browser --session hotels click @eN  (Accept all / Reject all)
 # agent-browser --session hotels wait 2000
-# agent-browser --session hotels snapshot -i
 
-# ── Step 3: Set check-in date ──
+# ── Step 3: Snapshot and extract ──
+agent-browser --session hotels snapshot -i
+# Expected elements include:
+#   @e1 [combobox] "Search for places, hotels and more"
+#   @e2 [textbox] "Check-in"           ← dates are set (verify with JS eval)
+#   @e3 [textbox] "Check-out"
+#   @e4 [button] "Number of travelers"
+#   @e5 [link] "Hilton Bangkok ..."    ← hotel results with actual prices
+# Actual ref numbers WILL vary. Always read the snapshot.
+#
+# NOTE: The snapshot shows date textboxes as "Check-in"/"Check-out" even when
+# dates are set. The dates ARE populated — verify if needed with:
+# agent-browser --session hotels eval "document.querySelector('input[placeholder=\"Check-in\"]')?.value"
+
+# Parse snapshot for: hotel name, star rating, guest rating,
+# price/night, booking provider, amenities
+
+# ── Step 4: Close ──
+agent-browser --session hotels close
+```
+
+### Without Dates (Interactive Fallback)
+
+Use when dates aren't known upfront, or when `hotel_ts` isn't available.
+
+```bash
+# ── Step 1: Open with location only ──
+agent-browser --session hotels open "https://www.google.com/travel/search?q=Hotels+in+Bangkok"
+agent-browser --session hotels wait --load networkidle
+agent-browser --session hotels snapshot -i
+
+# ── Step 2: Set check-in date ──
 agent-browser --session hotels click @eN   # Check-in button — opens calendar
 agent-browser --session hotels wait 1000
 agent-browser --session hotels snapshot -i
-# Navigate to March if needed:
-# agent-browser --session hotels click @eN   # Next month arrow
+# Navigate to target month if needed (use "<" for backward, ">" for forward)
 
 agent-browser --session hotels click @eN   # March 15
 agent-browser --session hotels wait 500
 agent-browser --session hotels snapshot -i
 
-# ── Step 4: Set check-out date ──
+# ── Step 3: Set check-out date ──
 agent-browser --session hotels click @eN   # March 20
 agent-browser --session hotels wait 500
 agent-browser --session hotels snapshot -i
@@ -60,11 +84,7 @@ agent-browser --session hotels wait --load networkidle
 agent-browser --session hotels snapshot -i
 # Results now show actual per-night prices
 
-# ── Step 5: Extract results ──
-# Parse snapshot for: hotel name, star rating, guest rating,
-# price/night, booking provider, amenities
-
-# ── Step 6: Close ──
+# ── Step 4: Extract and close ──
 agent-browser --session hotels close
 ```
 

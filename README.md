@@ -10,8 +10,8 @@ npx skills add https://github.com/skillhq/hotel-search
 
 ## 🔍 What It Does
 
-1. Opens Google Hotels via `agent-browser` (URL fast path for location, interactive date setting)
-2. Applies filters (stars, price, amenities, cancellation)
+1. Opens Google Hotels via `agent-browser` with location **and dates** encoded in the URL (3 commands)
+2. Applies filters interactively (stars, price, amenities, cancellation)
 3. Presents results as a formatted table with prices, ratings, and amenities
 
 ## 💬 Triggers
@@ -26,8 +26,8 @@ npx skills add https://github.com/skillhq/hotel-search
 
 | Feature | Method |
 |---------|--------|
-| Location search | URL fast path |
-| Check-in / check-out dates | Interactive (calendar picker) |
+| Location search | URL fast path (3 commands) |
+| Check-in / check-out dates | URL fast path (encoded `ts` parameter) |
 | Guests & rooms | Interactive (multiple rooms, children with ages) |
 | Star rating filter | Interactive (2★–5★) |
 | Price range filter | Interactive (min/max) |
