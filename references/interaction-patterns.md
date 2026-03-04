@@ -7,6 +7,7 @@ Deep-dive cookbook for automating Google Hotels with agent-browser. Covers trick
 ## Contents
 
 - [Full Annotated Walkthrough](#full-annotated-walkthrough)
+- [Specific Hotel Search](#specific-hotel-search)
 - [Location Autocomplete](#location-autocomplete)
 - [Date Picker Calendar](#date-picker-calendar)
 - [Guest & Room Selector](#guest--room-selector)
@@ -66,6 +67,30 @@ agent-browser --session hotels snapshot -i
 # ── Step 6: Close ──
 agent-browser --session hotels close
 ```
+
+---
+
+## Specific Hotel Search
+
+When the user asks about a **specific hotel by name** (not a general area search), use the hotel name directly in the URL:
+
+```bash
+agent-browser --session hotels open "https://www.google.com/travel/search?q=Haus+im+Tal+Munich"
+agent-browser --session hotels wait --load networkidle
+agent-browser --session hotels snapshot -i
+```
+
+Google typically shows the specific hotel in the sidebar or as the top result. Click into it for pricing and provider comparison, then set dates.
+
+### If the Hotel Doesn't Appear
+
+Try variations:
+- Full official name: `Haus+im+Tal+Munich`
+- Shorter name: `Haus+im+Tal`
+- Name + neighborhood: `Haus+im+Tal+Isarvorstadt`
+- Name + country: `Haus+im+Tal+Munich+Germany`
+
+If none work, fall back to a general area search and look for the hotel in the results list.
 
 ---
 
@@ -152,16 +177,27 @@ agent-browser --session hotels click @eN   # "Done"
 agent-browser --session hotels wait --load networkidle
 ```
 
-### Navigating to Future Months
+### Navigating Between Months
+
+The calendar may open on the **wrong month** (e.g., showing May when you need March). Use "<" to go backward and ">" to go forward.
 
 ```bash
+# Navigate BACKWARD (to earlier months)
+agent-browser --session hotels click @eN   # "<" previous month arrow
+agent-browser --session hotels wait 1000
+agent-browser --session hotels snapshot -i
+# Repeat until target month is visible
+
+# Navigate FORWARD (to later months)
 agent-browser --session hotels click @eN   # ">" next month arrow
 agent-browser --session hotels wait 1000
 agent-browser --session hotels snapshot -i
 # Repeat until target month is visible
 ```
 
-**Tip**: Search the snapshot text for your target date string (e.g., "March 15") to check visibility.
+**Tip**: Search the snapshot text for your target date string (e.g., "March 15") to check visibility. If the month header in the snapshot doesn't match your target, keep navigating.
+
+**Important**: Always re-snapshot after each arrow click. The calendar re-renders and all refs change.
 
 ### Cross-Month Stays
 
@@ -169,6 +205,8 @@ For a stay from March 28 to April 5: click March 28 first. The calendar may auto
 
 ### Common Issues
 
+- **Calendar opens on wrong month**: Use "<" to navigate backward. This is common when Google defaults to a future month. Keep clicking "<" and re-snapshotting until the target month is visible.
+- **Snapshot blocked by calendar overlay**: Press Escape to close the calendar, re-snapshot, then re-open the date picker and try again.
 - **Ambiguous day numbers** (e.g., "15" in two visible months): Day elements are grouped under month headers — pick the one under the correct month.
 - **Calendar doesn't close**: Click "Done" explicitly. It doesn't auto-close.
 - **Still shows "View prices" after setting dates**: Wait for networkidle or add a short wait after "Done".

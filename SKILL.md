@@ -21,6 +21,7 @@ Search Google Hotels via agent-browser to find hotel prices, ratings, amenities,
 - **Vacation rentals / Airbnb**: Google Hotels shows hotels, not rentals
 - **Flights**: Use the flight-search skill
 - **Historical prices**: Google Hotels shows current prices only
+- **NEVER leave Google Hotels** — do not navigate to Booking.com, Expedia, Hotels.com, or any third-party site. If Google Hotels isn't working, close the session and tell the user. Do not attempt workarounds on other sites.
 
 ## Session Convention
 
@@ -46,6 +47,19 @@ https://www.google.com/travel/search?q=Hotels+in+{LOCATION}
 | Near landmark | `Hotels+near+Eiffel+Tower` |
 | Region | `Hotels+in+Amalfi+Coast` |
 | Airport | `Hotels+near+BKK+airport` |
+| **Specific hotel** | `Haus+im+Tal+Munich` |
+
+### Specific Hotel Searches
+
+When the user asks about a **specific hotel by name**, use the hotel name (+ city) as the query:
+
+```
+https://www.google.com/travel/search?q={HOTEL+NAME}+{CITY}
+```
+
+Example: `https://www.google.com/travel/search?q=Haus+im+Tal+Munich`
+
+Google will show the hotel in the sidebar or as the top result. Click into it for pricing and provider comparison. If the hotel doesn't appear, try variations (full name, shorter name, name + neighborhood).
 
 ### URL vs Interactive Features
 
@@ -130,6 +144,8 @@ wait
 | Click suggestions, never Enter | Enter is unreliable for autocomplete |
 | Re-snapshot after every interaction | DOM changes invalidate refs |
 | Check for "View prices" | Means dates aren't set yet |
+| **Never leave Google Hotels** | Do not navigate to Booking.com, Expedia, etc. |
+| Navigate calendar with "<" and ">" | Calendar may open on wrong month — use arrows to go backward or forward |
 
 ## Troubleshooting
 
@@ -138,10 +154,13 @@ wait
 | Consent popup | Click "Accept all" or "Reject all" |
 | URL fast path fails | Fall back to `google.com/travel/hotels` interactive flow |
 | No results / "View prices" | Set check-in and check-out dates |
+| Calendar opens on wrong month | Use "<" arrow to navigate backward or ">" to go forward. Always re-snapshot after navigating to confirm target month is visible |
+| Snapshot blocked by calendar overlay | Press Escape to close the calendar, re-snapshot, then re-open the date picker and try again |
 | Stale pricing | Prices are real-time and indicative — mention this caveat |
 | Currency mismatch | Google uses browser locale currency — note any discrepancy |
 | CAPTCHA | Inform user. Do NOT solve. Retry after a short wait |
 | Map view instead of list | Click "List" or "View list" toggle |
+| Hotel not found | Try variations: full name, shorter name, name + city, name + neighborhood |
 
 ## Deep-Dive Reference
 
