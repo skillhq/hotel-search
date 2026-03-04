@@ -14,6 +14,7 @@ Deep-dive cookbook for automating Google Hotels with agent-browser. Covers trick
 - [Filters](#filters)
 - [Scrolling for More Results](#scrolling-for-more-results)
 - [Hotel Detail Drill-Down](#hotel-detail-drill-down)
+- [Direct Booking & Promo Check](#direct-booking--promo-check)
 
 ---
 
@@ -411,3 +412,73 @@ agent-browser --session hotels snapshot -i
 ```
 
 After navigating back, results may have shifted — re-snapshot before interacting with other hotels.
+
+---
+
+## Direct Booking & Promo Check
+
+After the Google Hotels search is complete, visit the hotel's own website to find better deals. Use a **separate session** to keep the Google Hotels results intact.
+
+### Finding the Hotel's Website
+
+Google Hotels often links to the hotel's direct site in the provider comparison. If not visible:
+
+```bash
+# Search for the hotel's website
+agent-browser --session direct open "https://www.google.com/search?q=Haus+im+Tal+Munich+official+site"
+agent-browser --session direct wait --load networkidle
+agent-browser --session direct snapshot -i
+# Click the hotel's own website (not OTA links)
+agent-browser --session direct click @eN
+agent-browser --session direct wait --load networkidle
+agent-browser --session direct snapshot -i
+```
+
+### What to Look For on the Hotel Website
+
+1. **Booking widget** — compare the direct price vs what Google Hotels showed
+2. **Banner promotions** — look for "X% off", "use code", "special offer" text
+3. **"Offers" / "Deals" / "Packages" page** — click any such link in the nav
+4. **Member signup discount** — "Join for free" + instant discount
+5. **Seasonal specials** — holiday rates, early bird, extended stay discounts
+
+```bash
+# Check the offers/deals page if available
+agent-browser --session direct snapshot -i
+# Look for links containing "offer", "deal", "promo", "special"
+agent-browser --session direct click @eN   # "Offers" or "Deals" link
+agent-browser --session direct wait --load networkidle
+agent-browser --session direct snapshot -i
+agent-browser --session direct close
+```
+
+### Chain Hotel Loyalty Check
+
+For chain hotels, check the loyalty program rate on their booking engine:
+
+```bash
+# Example: IHG hotel — check member rate
+agent-browser --session direct open "https://www.ihg.com/hotels/us/en/find-hotels/hotel/rooms?qDest=Munich&qCiD=01&qCiMy=032026&qCoD=04&qCoMy=032026&qRms=1&qAdlt=2"
+agent-browser --session direct wait --load networkidle
+agent-browser --session direct snapshot -i
+# Compare "Member Rate" vs "Best Flexible Rate"
+agent-browser --session direct close
+```
+
+Common chain booking URLs:
+- **IHG**: `ihg.com/hotels/us/en/find-hotels/`
+- **Marriott**: `marriott.com/search/`
+- **Hilton**: `hilton.com/en/search/`
+- **Accor**: `all.accor.com/`
+- **Hyatt**: `hyatt.com/search/`
+
+### Independent Hotel Promo Code Search
+
+If the hotel's website doesn't show obvious promos, try a quick web search:
+
+```bash
+agent-browser --session direct open "https://www.google.com/search?q=%22Haus+im+Tal%22+Munich+promo+code+OR+discount+OR+coupon+2026"
+agent-browser --session direct wait --load networkidle
+agent-browser --session direct snapshot -i
+agent-browser --session direct close
+```

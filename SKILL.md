@@ -21,7 +21,7 @@ Search Google Hotels via agent-browser to find hotel prices, ratings, amenities,
 - **Vacation rentals / Airbnb**: Google Hotels shows hotels, not rentals
 - **Flights**: Use the flight-search skill
 - **Historical prices**: Google Hotels shows current prices only
-- **NEVER leave Google Hotels** — do not navigate to Booking.com, Expedia, Hotels.com, or any third-party site. If Google Hotels isn't working, close the session and tell the user. Do not attempt workarounds on other sites.
+- **NEVER leave Google Hotels during search** — do not navigate to Booking.com, Expedia, Hotels.com, or any OTA as a search workaround. Exception: after presenting results, you MAY visit the hotel's **own website** for direct booking/promo checks (see [Post-Search](#post-search-direct-booking--deals)).
 
 ## Session Convention
 
@@ -166,7 +166,7 @@ wait
 | Click suggestions, never Enter | Enter is unreliable for autocomplete |
 | Re-snapshot after every interaction | DOM changes invalidate refs |
 | Check for "View prices" | Means dates aren't set yet |
-| **Never leave Google Hotels** | Do not navigate to Booking.com, Expedia, etc. |
+| **Never leave Google Hotels during search** | Exception: hotel's own site for direct booking check after results |
 | Navigate calendar with "<" and ">" | Calendar may open on wrong month — use arrows to go backward or forward |
 
 ## Troubleshooting
@@ -184,6 +184,82 @@ wait
 | Map view instead of list | Click "List" or "View list" toggle |
 | Hotel not found | Try variations: full name, shorter name, name + city, name + neighborhood |
 
+## Post-Search: Direct Booking & Deals
+
+After presenting results, **always ask the user** if they'd like you to check for better deals. Phrase it like:
+
+> "Want me to check [hotel name]'s direct website for promo codes or member rates? Direct booking is often cheaper than OTAs."
+
+### When to Offer
+
+- **Always** when the user searches for a specific hotel by name
+- **Always** when results show a single clear winner the user is interested in
+- **On request** when comparing multiple hotels — offer for whichever they pick
+
+### What to Check
+
+Open the hotel's own website in a **new session** (`--session direct`) and look for:
+
+1. **Direct booking price** — often 5-15% cheaper than OTAs (Booking.com, Expedia, etc.)
+2. **Promo codes** — look for banners, pop-ups, or a "offers"/"deals"/"promotions" page
+3. **Member/loyalty rates** — "sign up for X% off first booking" or free membership discounts
+4. **Package deals** — breakfast included, free cancellation, parking bundles
+5. **Seasonal promotions** — holiday specials, early bird rates, last-minute deals
+
+```bash
+# After Google Hotels search is done, visit hotel's direct site
+agent-browser --session direct open "https://www.example-hotel.com"
+agent-browser --session direct wait --load networkidle
+agent-browser --session direct snapshot -i
+# Look for: promo banners, "offers" or "deals" links, booking widget prices
+agent-browser --session direct close
+```
+
+### Chain Hotel Loyalty Programs
+
+If the hotel belongs to a major chain, mention the loyalty program — members often get better rates, room upgrades, or points:
+
+| Chain | Brands | Loyalty Program | Typical Member Perks |
+|-------|--------|----------------|---------------------|
+| IHG | Holiday Inn, InterContinental, Crowne Plaza, Kimpton, Indigo | IHG One Rewards | Member rate (often cheapest), points earning, 4th night free on reward stays |
+| Marriott | Marriott, Sheraton, Westin, W, Ritz-Carlton, Courtyard, Aloft | Marriott Bonvoy | Member rate, mobile check-in, points/miles |
+| Hilton | Hilton, DoubleTree, Hampton, Conrad, Waldorf Astoria | Hilton Honors | Member discount, 5th night free on reward stays, digital key |
+| Accor | Sofitel, Novotel, ibis, Mercure, Moxy, Fairmont | ALL - Accor Live Limitless | Member rates, status benefits |
+| Hyatt | Hyatt, Andaz, Park Hyatt, Thompson | World of Hyatt | Member rate, free night awards, suite upgrades |
+
+### How to Identify the Chain
+
+The Google Hotels snapshot often includes the chain name:
+- `"Holiday Inn Express Bangkok Sukhumvit 11 by IHG"` → IHG
+- `"Courtyard by Marriott Bangkok"` → Marriott
+- `"Hilton Munich City"` → Hilton
+- `"Novotel Muenchen City"` → Accor
+- No chain suffix → likely independent (check their website directly)
+
+### Independent Hotels
+
+For independent/boutique hotels (like Haus im Tal):
+- Check their website for promo codes (often shown in banners or a dedicated "Offers" page)
+- Look for "Book Direct" incentives (best price guarantee, free extras)
+- Check if they offer a newsletter signup discount
+- Mention the hotel name + "promo code" in a web search if the site doesn't show any
+
+### Present the Comparison
+
+After checking, present a direct vs OTA comparison:
+
+```
+## Haus im Tal — Booking Comparison
+
+| Source | Room Type | Price/Night | Total (3 nights) | Notes |
+|--------|-----------|-------------|-------------------|-------|
+| Booking.com | Downtown Cozy | €183 | €549 | Free cancellation |
+| Hotel direct | Downtown Cozy | €175 | €525 | Use code HIT24 for 5% off |
+| Hotel direct (with code) | Downtown Cozy | €166 | €499 | Best price |
+```
+
+> **Tip**: Always remind the user that you cannot complete the booking — just provide the link and any promo codes found.
+
 ## Deep-Dive Reference
 
 See [references/interaction-patterns.md](references/interaction-patterns.md) for:
@@ -194,3 +270,4 @@ See [references/interaction-patterns.md](references/interaction-patterns.md) for
 - Filters (stars, price, amenities, cancellation)
 - Scrolling for more results
 - Hotel detail drill-down with provider price comparison
+- Direct booking & promo check workflow
