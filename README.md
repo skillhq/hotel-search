@@ -5,7 +5,7 @@ Google Hotels search skill for [Claude Code](https://claude.com/claude-code). Fi
 ## 📦 Install
 
 ```bash
-claude skill add skillhq/hotel-search
+npx skills add https://github.com/skillhq/hotel-search
 ```
 
 ## 🔍 What It Does
